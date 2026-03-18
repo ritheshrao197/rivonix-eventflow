@@ -352,11 +352,24 @@ namespace Rivonix.EventFlow.Editor
                         }
 
                         var steps = EventFlowController.GetPipelineSteps(kvp.Key);
+                        var executionInfo = EventFlowController.GetPipelineExecutionInfo(kvp.Key);
                         int stepCount = steps?.Count ?? 0;
+                        int listenerCount = EventBus.GetListenerCount(kvp.Key);
 
                         EditorGUILayout.BeginVertical("box");
                         EditorGUILayout.LabelField($"{kvp.Key.Name} -> {stepCount} step{(stepCount != 1 ? "s" : "")}", EditorStyles.boldLabel);
-                        EditorGUILayout.LabelField("Execution order shown top to bottom", EditorStyles.miniLabel);
+                        EditorGUILayout.LabelField($"Execution count: {executionInfo.ExecutionCount}", EditorStyles.miniLabel);
+                        if (!string.IsNullOrEmpty(executionInfo.LastExecutedStepName))
+                        {
+                            string lastStatus = executionInfo.LastExecutionFailed
+                                ? "failed"
+                                : executionInfo.LastDispatchSucceeded ? "dispatched" : "stopped";
+                            EditorGUILayout.LabelField(
+                                $"Last execution: [{executionInfo.LastExecutedStepName}] -> {lastStatus}",
+                                EditorStyles.miniLabel);
+                        }
+                        EditorGUILayout.LabelField($"Dispatch target: {listenerCount} listener{(listenerCount != 1 ? "s" : "")}", EditorStyles.miniLabel);
+                        EditorGUILayout.Space(2f);
 
                         if (steps == null || steps.Count == 0)
                         {
@@ -369,10 +382,21 @@ namespace Rivonix.EventFlow.Editor
                         {
                             PipelineStepInfo step = steps[i];
                             string enabledLabel = step.Enabled ? "Enabled" : "Disabled";
+                            bool isLastExecuted = string.Equals(step.Name, executionInfo.LastExecutedStepName, StringComparison.Ordinal);
+                            Color previousColor = GUI.color;
+                            if (isLastExecuted)
+                            {
+                                GUI.color = executionInfo.LastExecutionFailed ? new Color(1f, 0.6f, 0.6f) : new Color(0.65f, 1f, 0.65f);
+                            }
                             EditorGUILayout.LabelField(
-                                $"{step.Order}. {step.Name} | Priority: {step.Priority} | {enabledLabel}",
+                                $"[{step.Order}] {step.Name} | Priority: {step.Priority} | {enabledLabel}",
                                 EditorStyles.label);
+                            GUI.color = previousColor;
                         }
+                        EditorGUILayout.Space(2f);
+                        EditorGUILayout.LabelField(
+                            $"Flow: {kvp.Key.Name} -> steps -> dispatched to {listenerCount} listener{(listenerCount != 1 ? "s" : "")}",
+                            EditorStyles.miniLabel);
                         EditorGUILayout.EndVertical();
                     }
                 }

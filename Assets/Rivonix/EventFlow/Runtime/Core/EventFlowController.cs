@@ -43,6 +43,21 @@ namespace Rivonix.EventFlow
             return readonlyPipelines;
         }
 
+        public static PipelineExecutionInfo GetPipelineExecutionInfo(Type eventType)
+        {
+            if (!pipelines.TryGetValue(eventType, out object pipelineObject))
+            {
+                return default;
+            }
+
+            if (pipelineObject is IEventPipelineInfo pipelineInfo)
+            {
+                return pipelineInfo.GetExecutionInfo();
+            }
+
+            return default;
+        }
+
         public static IReadOnlyList<PipelineStepInfo> GetPipelineSteps(Type eventType)
         {
             if (!pipelines.TryGetValue(eventType, out object pipelineObject))
@@ -73,12 +88,14 @@ namespace Rivonix.EventFlow
         private interface IEventPipelineInfo
         {
             IReadOnlyList<PipelineStepInfo> GetStepInfos();
+            PipelineExecutionInfo GetExecutionInfo();
         }
 
         private sealed class EventPipeline<T> : IEventPipelineInfo where T : IEvent
         {
             private readonly List<PipelineStep<T>> steps = new List<PipelineStep<T>>();
             private readonly List<PipelineStepInfo> stepInfos = new List<PipelineStepInfo>();
+            private PipelineExecutionInfo executionInfo;
 
             public void AddStep(string name, EventStep<T> step, int priority, bool enabled)
             {
@@ -104,22 +121,32 @@ namespace Rivonix.EventFlow
                     {
                         if (step.Action(ref eventData) == FlowResult.Stop)
                         {
+                            executionInfo = executionInfo.RecordExecution(step.Name, false);
                             return false;
                         }
                     }
                     catch (Exception exception)
                     {
+                        executionInfo = executionInfo.RecordFailure(step.Name);
                         Debug.LogError($"[EventFlow] Pipeline step '{step.Name}' failed for {typeof(T).Name}: {exception.Message}\n{exception.StackTrace}");
                         return false;
                     }
                 }
 
+                executionInfo = executionInfo.RecordExecution(
+                    steps.Count > 0 ? steps[steps.Count - 1].Name : "Dispatch",
+                    true);
                 return true;
             }
 
             public IReadOnlyList<PipelineStepInfo> GetStepInfos()
             {
                 return stepInfos;
+            }
+
+            public PipelineExecutionInfo GetExecutionInfo()
+            {
+                return executionInfo;
             }
 
             private void RebuildStepInfos()
@@ -165,5 +192,39 @@ namespace Rivonix.EventFlow
         public int Priority { get; }
         public bool Enabled { get; }
         public int Order { get; }
+    }
+
+    public readonly struct PipelineExecutionInfo
+    {
+        public PipelineExecutionInfo(int executionCount, string lastExecutedStepName, bool lastDispatchSucceeded, bool lastExecutionFailed)
+        {
+            ExecutionCount = executionCount;
+            LastExecutedStepName = lastExecutedStepName;
+            LastDispatchSucceeded = lastDispatchSucceeded;
+            LastExecutionFailed = lastExecutionFailed;
+        }
+
+        public int ExecutionCount { get; }
+        public string LastExecutedStepName { get; }
+        public bool LastDispatchSucceeded { get; }
+        public bool LastExecutionFailed { get; }
+
+        public PipelineExecutionInfo RecordExecution(string stepName, bool dispatchSucceeded)
+        {
+            return new PipelineExecutionInfo(
+                ExecutionCount + 1,
+                stepName,
+                dispatchSucceeded,
+                false);
+        }
+
+        public PipelineExecutionInfo RecordFailure(string stepName)
+        {
+            return new PipelineExecutionInfo(
+                ExecutionCount + 1,
+                stepName,
+                false,
+                true);
+        }
     }
 }
