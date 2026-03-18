@@ -18,6 +18,7 @@ namespace Rivonix.EventFlow.Editor
         private string searchFilter = "";
         private bool showListeners = true;
         private bool showHistory = true;
+        private bool showPipelines = true;
         private bool showStatePermissions = true;
         private bool showPerformance = true;
         private bool showScheduler = true;
@@ -94,6 +95,7 @@ namespace Rivonix.EventFlow.Editor
             DrawCurrentState();
             DrawPerformance();
             DrawEventListeners();
+            DrawPipelines();
             DrawEventHistory();
             DrawScheduler();
             DrawStatePermissions();
@@ -322,6 +324,54 @@ namespace Rivonix.EventFlow.Editor
                 EditorGUILayout.EndScrollView();
             }
             
+            EditorGUILayout.EndVertical();
+        }
+
+        private void DrawPipelines()
+        {
+            EditorGUILayout.BeginVertical("box");
+
+            showPipelines = EditorGUILayout.Foldout(showPipelines, "Pipelines", true);
+
+            if (showPipelines)
+            {
+                var pipelines = EventFlowController.GetPipelines();
+
+                if (pipelines.Count == 0)
+                {
+                    EditorGUILayout.HelpBox("No pipelines registered yet. Add steps with EventFlow.AddStep<T>().", MessageType.Info);
+                }
+                else
+                {
+                    foreach (var kvp in pipelines.OrderBy(x => x.Key.Name))
+                    {
+                        if (!string.IsNullOrEmpty(searchFilter) &&
+                            !kvp.Key.Name.ToLower().Contains(searchFilter.ToLower()))
+                        {
+                            continue;
+                        }
+
+                        EditorGUILayout.LabelField(kvp.Key.Name, EditorStyles.boldLabel);
+
+                        var steps = EventFlowController.GetPipelineSteps(kvp.Key);
+                        if (steps == null || steps.Count == 0)
+                        {
+                            EditorGUI.indentLevel++;
+                            EditorGUILayout.LabelField("No steps registered", EditorStyles.miniLabel);
+                            EditorGUI.indentLevel--;
+                            continue;
+                        }
+
+                        EditorGUI.indentLevel++;
+                        foreach (string step in steps)
+                        {
+                            EditorGUILayout.LabelField($"-> {step}");
+                        }
+                        EditorGUI.indentLevel--;
+                    }
+                }
+            }
+
             EditorGUILayout.EndVertical();
         }
         

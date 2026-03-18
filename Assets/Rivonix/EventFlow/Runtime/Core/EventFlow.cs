@@ -25,12 +25,22 @@ namespace Rivonix.EventFlow
 
         public static void Trigger<T>(T eventData) where T : IEvent
         {
-            EventBus.Trigger(eventData);
+            EventFlowController.Execute(eventData);
+        }
+
+        public static void TriggerDirect<T>(T eventData) where T : IEvent
+        {
+            EventBus.Dispatch(eventData);
         }
 
         public static void TriggerDelayed<T>(T eventData, float delay) where T : IEvent
         {
             EventBus.TriggerDelayed(eventData, delay);
+        }
+
+        public static void AddStep<T>(EventStep<T> step) where T : IEvent
+        {
+            EventFlowController.AddStep(step);
         }
 
         public static bool HasListeners<T>() where T : IEvent

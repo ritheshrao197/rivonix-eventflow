@@ -73,11 +73,20 @@ namespace Rivonix.EventFlow
         }
         
         /// <summary>
-        /// Trigger an event immediately, invoking all registered listeners
+        /// Trigger an event immediately, invoking all registered listeners.
+        /// This bypasses EventFlow pipelines and dispatches directly.
         /// </summary>
         /// <typeparam name="T">The event type to trigger</typeparam>
         /// <param name="eventData">The event data to pass to listeners</param>
         public static void Trigger<T>(T eventData) where T : IEvent
+        {
+            Dispatch(eventData);
+        }
+
+        /// <summary>
+        /// Dispatch an event directly to listeners, bypassing EventFlow pipelines.
+        /// </summary>
+        public static void Dispatch<T>(T eventData) where T : IEvent
         {
             Type eventType = typeof(T);
             
