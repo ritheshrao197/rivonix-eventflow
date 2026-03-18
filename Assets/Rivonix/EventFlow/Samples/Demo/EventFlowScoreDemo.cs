@@ -126,15 +126,84 @@ namespace Rivonix.EventFlow.Samples
 
         private void OnGUI()
         {
-            GUILayout.BeginArea(new Rect(20f, 20f, 520f, 180f), GUI.skin.box);
-            GUILayout.Label("EventFlow Score Pipeline Demo", GUI.skin.label);
-            GUILayout.Label("SPACE: valid event | BACKSPACE: blocked event | R: reset");
-            GUILayout.Space(8f);
-            GUILayout.Label($"Last Input: {lastInput}");
-            GUILayout.Label($"Last Output: {lastOutput}");
-            GUILayout.Label($"Total Score: {totalScore}");
-            GUILayout.Label($"Status: {lastStatus}");
+            GUILayout.BeginArea(new Rect(20f, 20f, 540f, 220f), GUI.skin.window);
+
+            // Title
+            GUILayout.Label("<b>Rivonix EventFlow - Score Pipeline Demo</b>", GetRichLabelStyle(16));
+
+            GUILayout.Space(6f);
+
+            // Controls
+            GUILayout.BeginVertical(GUI.skin.box);
+            GUILayout.Label("<b>Controls</b>", GetRichLabelStyle(13));
+            GUILayout.Label("SPACE  → Valid Event");
+            GUILayout.Label("BACKSPACE → Blocked Event");
+            GUILayout.Label("R → Reset");
+            GUILayout.EndVertical();
+
+            GUILayout.Space(6f);
+
+            // Runtime Data
+            GUILayout.BeginVertical(GUI.skin.box);
+            GUILayout.Label("<b>Runtime Data</b>", GetRichLabelStyle(13));
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Last Input:", GUILayout.Width(120));
+            GUILayout.Label(lastInput.ToString());
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Last Output:", GUILayout.Width(120));
+            GUILayout.Label(lastOutput.ToString());
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Total Score:", GUILayout.Width(120));
+            GUILayout.Label(totalScore.ToString());
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Status:", GUILayout.Width(120));
+            GUILayout.Label(GetStatusText(), GetStatusStyle());
+            GUILayout.EndHorizontal();
+
+            GUILayout.EndVertical();
+
             GUILayout.EndArea();
+        }
+        private GUIStyle GetRichLabelStyle(int fontSize)
+        {
+            var style = new GUIStyle(GUI.skin.label);
+            style.richText = true;
+            style.fontSize = fontSize;
+            style.fontStyle = FontStyle.Bold;
+            return style;
+        }
+
+        private GUIStyle GetStatusStyle()
+        {
+            var style = new GUIStyle(GUI.skin.label);
+            style.fontStyle = FontStyle.Bold;
+
+            switch (lastStatus)
+            {
+                case "Blocked":
+                    style.normal.textColor = Color.red;
+                    break;
+                case "Processed":
+                    style.normal.textColor = Color.green;
+                    break;
+                default:
+                    style.normal.textColor = Color.white;
+                    break;
+            }
+
+            return style;
+        }
+
+        private string GetStatusText()
+        {
+            return lastStatus;
         }
     }
 }
