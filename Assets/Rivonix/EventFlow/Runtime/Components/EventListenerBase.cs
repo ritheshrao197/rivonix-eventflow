@@ -25,13 +25,13 @@ namespace Rivonix.EventFlow
         
         /// <summary>
         /// Override this to register your event listeners
-        /// Example: EventBus.Register<PlayerDiedEvent>(OnPlayerDied);
+        /// Example: EventFlow.Register<PlayerDiedEvent>(OnPlayerDied);
         /// </summary>
         protected abstract void RegisterEvents();
         
         /// <summary>
         /// Override this to unregister your event listeners
-        /// Example: EventBus.Unregister<PlayerDiedEvent>(OnPlayerDied);
+        /// Example: EventFlow.Unregister<PlayerDiedEvent>(OnPlayerDied);
         /// </summary>
         protected abstract void UnregisterEvents();
         
@@ -40,7 +40,7 @@ namespace Rivonix.EventFlow
         /// </summary>
         protected void TriggerEvent<T>(T eventData) where T : IEvent
         {
-            EventBus.Trigger(eventData);
+            EventFlow.Trigger(eventData);
         }
         
         /// <summary>
@@ -48,7 +48,7 @@ namespace Rivonix.EventFlow
         /// </summary>
         protected void TriggerEventDelayed<T>(T eventData, float delay) where T : IEvent
         {
-            EventBus.TriggerDelayed(eventData, delay);
+            EventFlow.TriggerDelayed(eventData, delay);
         }
         
         /// <summary>
@@ -56,7 +56,7 @@ namespace Rivonix.EventFlow
         /// </summary>
         protected bool HasListeners<T>() where T : IEvent
         {
-            return EventBus.HasListeners<T>();
+            return EventFlow.HasListeners<T>();
         }
     }
 }
