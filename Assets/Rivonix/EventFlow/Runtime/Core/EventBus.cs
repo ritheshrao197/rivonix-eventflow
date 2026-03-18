@@ -11,32 +11,7 @@ namespace Rivonix.EventFlow
     public static class EventBus
     {
         // Storage for all event listeners
-        private static Dictionary<Type, List<Delegate>> listeners = new Dictionary<Type, List<Delegate>>();
-        
-        // Event history for debugging
-        private static List<EventLog> eventHistory = new List<EventLog>();
-        private static int maxHistorySize = 100;
-        
-        // Performance monitoring
-        private static int eventsThisFrame = 0;
-        private static int maxEventsPerFrame = 200;
-        
-        /// <summary>
-        /// Log entry for debug viewing
-        /// </summary>
-        public class EventLog
-        {
-            public string eventType;
-            public string eventData;
-            public float time;
-            public int frameCount;
-            public bool wasBlocked;
-        }
-        
-        /// <summary>
-        /// Get the event history for debugging
-        /// </summary>
-        public static List<EventLog> GetEventHistory() => eventHistory;
+        private static readonly Dictionary<Type, List<Delegate>> listeners = new Dictionary<Type, List<Delegate>>();
         
         /// <summary>
         /// Register a listener for an event type
@@ -106,21 +81,15 @@ namespace Rivonix.EventFlow
         {
             Type eventType = typeof(T);
             
-            // Performance check
-            eventsThisFrame++;
-            if (eventsThisFrame > maxEventsPerFrame)
+            if (!EventFlowDiagnostics.TryBeginEventDispatch(eventType))
             {
-                Debug.LogWarning($"[EventBus] Too many events this frame ({eventsThisFrame}). Possible infinite loop?");
                 return;
             }
             
             // Check game state permissions
             bool blocked = !GameStateManager.CanTriggerEvent(eventType);
             
-            // Log for debugging
-            #if UNITY_EDITOR
-            LogEvent(eventType, eventData.ToString(), blocked);
-            #endif
+            EventFlowDiagnostics.RecordEvent(eventType, eventData.ToString(), blocked);
             
             if (blocked)
                 return;
@@ -198,7 +167,7 @@ namespace Rivonix.EventFlow
         public static void Clear()
         {
             listeners.Clear();
-            eventsThisFrame = 0;
+            EventFlowDiagnostics.ResetAll();
             
             #if UNITY_EDITOR
             Debug.Log("[EventBus] All listeners cleared");
@@ -210,25 +179,7 @@ namespace Rivonix.EventFlow
         /// </summary>
         public static void OnFrameEnd()
         {
-            eventsThisFrame = 0;
+            EventFlowDiagnostics.ResetFrame();
         }
-        
-        #if UNITY_EDITOR
-        private static void LogEvent(Type eventType, string data, bool blocked)
-        {
-            eventHistory.Add(new EventLog
-            {
-                eventType = eventType.Name,
-                eventData = data,
-                time = Time.time,
-                frameCount = Time.frameCount,
-                wasBlocked = blocked
-            });
-            
-            // Trim history
-            while (eventHistory.Count > maxHistorySize)
-                eventHistory.RemoveAt(0);
-        }
-        #endif
     }
 }
