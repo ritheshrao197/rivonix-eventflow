@@ -1,96 +1,152 @@
 #if UNITY_EDITOR
-using UnityEditor;
-using UnityEngine;
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using UnityEditor;
+using UnityEngine;
 
 namespace Rivonix.EventFlow.Editor
 {
-    /// <summary>
-    /// Debug window for monitoring events in real-time
-    /// </summary>
     public class EventFlowDebugWindow : EditorWindow
     {
-        private Vector2 scrollPosition;
-        private Vector2 historyScrollPosition;
-        private string searchFilter = "";
-        private bool showListeners = true;
-        private bool showHistory = true;
-        private bool showPipelines = true;
-        private bool showStatePermissions = true;
-        private bool showPerformance = true;
-        private bool showScheduler = true;
-        private int selectedEventIndex = -1;
-        private float refreshRate = 0.5f;
-        private double lastRefreshTime;
-        
-        // Cached data
-        private List<Type> eventTypes = new List<Type>();
-        private Dictionary<Type, int> listenerCounts = new Dictionary<Type, int>();
-        
-        [MenuItem("Tools/Rivonix/EventFlow/Debug Window")]
-        public static void ShowWindow()
+        private Vector2 _scroll;
+        private Vector2 _historyScroll;
+        private string  _search            = "";
+        private bool    _showListeners     = true;
+        private bool    _showHistory       = true;
+        private bool    _showPipelines     = true;
+        private bool    _showPermissions   = true;
+        private bool    _showPerformance   = true;
+        private bool    _showScheduler     = true;
+        private int     _selectedTypeIndex = -1;
+        private float   _refreshRate       = 0.5f;
+        private double  _lastRefresh;
+
+        private List<Type>                     _eventTypes      = new List<Type>();
+        private Dictionary<Type, int>          _listenerCounts  = new Dictionary<Type, int>();
+        private Dictionary<Type, List<string>> _listenerDetails = new Dictionary<Type, List<string>>();
+        private Dictionary<Type, string>       _permStrings     = new Dictionary<Type, string>();
+
+        private static FieldInfo _listenersField;
+        private static FieldInfo _permissionsField;
+
+        private static FieldInfo ListenersField
         {
-            GetWindow<EventFlowDebugWindow>("Rivonix EventFlow Debug");
+            get
+            {
+                if (_listenersField == null)
+                    _listenersField = typeof(EventBus).GetField("listeners",
+                        BindingFlags.Static | BindingFlags.NonPublic);
+                return _listenersField;
+            }
         }
-        
+
+        private static FieldInfo PermissionsField
+        {
+            get
+            {
+                if (_permissionsField == null)
+                    _permissionsField = typeof(GameStateManager).GetField("eventPermissions",
+                        BindingFlags.Static | BindingFlags.NonPublic);
+                return _permissionsField;
+            }
+        }
+
+        [MenuItem("Tools/Rivonix/EventFlow/Debug Window")]
+        public static void ShowWindow() => GetWindow<EventFlowDebugWindow>("EventFlow Debug");
+
         private void OnEnable()
         {
             EditorApplication.update += OnEditorUpdate;
-            RefreshData();
-            titleContent = new GUIContent("EventFlow Debug", EditorGUIUtility.IconContent("d_UnityEditor.SceneView").image);
+            titleContent = new GUIContent("EventFlow Debug",
+                EditorGUIUtility.IconContent("d_UnityEditor.SceneView").image);
+            Refresh();
         }
-        
-        private void OnDisable()
-        {
-            EditorApplication.update -= OnEditorUpdate;
-        }
-        
+
+        private void OnDisable() => EditorApplication.update -= OnEditorUpdate;
+
         private void OnEditorUpdate()
         {
-            // Refresh data periodically
-            if (EditorApplication.timeSinceStartup - lastRefreshTime > refreshRate)
+            if (EditorApplication.timeSinceStartup - _lastRefresh > _refreshRate)
             {
-                RefreshData();
-                lastRefreshTime = EditorApplication.timeSinceStartup;
+                Refresh();
+                _lastRefresh = EditorApplication.timeSinceStartup;
             }
         }
-        
-        private void RefreshData()
+
+        private void Refresh()
         {
-            // Use reflection to get listener data from EventBus
-            var busType = typeof(EventBus);
-            var listenersField = busType.GetField("listeners", BindingFlags.Static | BindingFlags.NonPublic);
-            
-            if (listenersField != null)
+            RefreshListeners();
+            RefreshPermissions();
+            Repaint();
+        }
+
+        private void RefreshListeners()
+        {
+            _eventTypes.Clear();
+            _listenerCounts.Clear();
+            _listenerDetails.Clear();
+
+            var dict = ListenersField?.GetValue(null) as System.Collections.IDictionary;
+            if (dict == null) return;
+
+            foreach (System.Collections.DictionaryEntry entry in dict)
             {
-                var listeners = listenersField.GetValue(null) as Dictionary<Type, List<Delegate>>;
-                
-                if (listeners != null)
+                var eventType = entry.Key as Type;
+                if (eventType == null) continue;
+
+                var list  = entry.Value as System.Collections.IList;
+                int count = list != null ? list.Count : 0;
+
+                _eventTypes.Add(eventType);
+                _listenerCounts[eventType] = count;
+
+                var details = new List<string>();
+                if (list != null && list.Count > 0)
                 {
-                    eventTypes.Clear();
-                    listenerCounts.Clear();
-                    
-                    foreach (var kvp in listeners)
+                    var handlerField = list[0].GetType().GetField("handler");
+                    var scopeField   = list[0].GetType().GetField("scope");
+
+                    foreach (var item in list)
                     {
-                        if (kvp.Key != null)
-                        {
-                            eventTypes.Add(kvp.Key);
-                            listenerCounts[kvp.Key] = kvp.Value?.Count ?? 0;
-                        }
+                        string scope  = scopeField?.GetValue(item) as string ?? "global";
+                        var    del    = handlerField?.GetValue(item) as Delegate;
+                        string target = del != null
+                            ? del.Method.DeclaringType.Name + "." + del.Method.Name
+                            : "unknown";
+                        details.Add("[" + scope + "]  " + target);
                     }
                 }
+                _listenerDetails[eventType] = details;
             }
         }
-        
+
+        private void RefreshPermissions()
+        {
+            _permStrings.Clear();
+
+            var dict = PermissionsField?.GetValue(null) as System.Collections.IDictionary;
+            if (dict == null) return;
+
+            foreach (System.Collections.DictionaryEntry entry in dict)
+            {
+                var eventType = entry.Key as Type;
+                if (eventType == null) continue;
+
+                var set   = entry.Value as System.Collections.IEnumerable;
+                var parts = new List<string>();
+                if (set != null)
+                    foreach (var s in set) parts.Add(s.ToString());
+
+                _permStrings[eventType] = string.Join(", ", parts);
+            }
+        }
+
         private void OnGUI()
         {
             DrawToolbar();
-            
-            scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
-            
+            _scroll = EditorGUILayout.BeginScrollView(_scroll);
             DrawHeader();
             DrawCurrentState();
             DrawPerformance();
@@ -100,485 +156,359 @@ namespace Rivonix.EventFlow.Editor
             DrawScheduler();
             DrawStatePermissions();
             DrawControls();
-            
             EditorGUILayout.EndScrollView();
         }
-        
+
         private void DrawToolbar()
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
-            
-            if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(60)))
-            {
-                RefreshData();
-            }
-            
-            GUILayout.Label("Refresh:", GUILayout.Width(50));
-            refreshRate = EditorGUILayout.Slider(refreshRate, 0.1f, 2f, GUILayout.Width(100));
-            
+            if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(60))) Refresh();
+            GUILayout.Label("Rate:", GUILayout.Width(35));
+            _refreshRate = EditorGUILayout.Slider(_refreshRate, 0.1f, 2f, GUILayout.Width(100));
             GUILayout.FlexibleSpace();
-            
             GUILayout.Label("Search:", GUILayout.Width(45));
-            searchFilter = EditorGUILayout.TextField(searchFilter, EditorStyles.toolbarSearchField, GUILayout.Width(150));
-            
-            if (GUILayout.Button("Clear Filter", EditorStyles.toolbarButton, GUILayout.Width(70)))
-            {
-                searchFilter = "";
-            }
-            
+            _search = EditorGUILayout.TextField(_search, EditorStyles.toolbarSearchField, GUILayout.Width(150));
+            if (GUILayout.Button("x", EditorStyles.toolbarButton, GUILayout.Width(22))) _search = "";
             EditorGUILayout.EndHorizontal();
         }
-        
+
         private void DrawHeader()
         {
             EditorGUILayout.BeginVertical("box");
-            
-            GUILayout.Label("RIVONIX EVENTFLOW DEBUGGER", EditorStyles.boldLabel);
-            GUILayout.Label("Real-time event monitoring and diagnostics", EditorStyles.miniLabel);
-            
+            GUILayout.Label("Rivonix EventFlow Debugger", EditorStyles.boldLabel);
+            GUILayout.Label("Real-time event monitoring & diagnostics", EditorStyles.miniLabel);
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawCurrentState()
         {
             EditorGUILayout.BeginVertical("box");
-            
-            EditorGUILayout.LabelField("Current Game State", EditorStyles.boldLabel);
-            
+            EditorGUILayout.LabelField("Game State", EditorStyles.boldLabel);
+            var state = GameStateManager.CurrentState;
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("State:", GUILayout.Width(60));
-            
-            var currentState = GameStateManager.CurrentState;
-            
-            // Color code based on state
-            GUI.color = GetStateColor(currentState);
-            EditorGUILayout.EnumPopup(currentState, GUILayout.Width(150));
+            EditorGUILayout.LabelField("Current:", GUILayout.Width(60));
+            GUI.color = GetStateColor(state);
+            EditorGUILayout.EnumPopup(state, GUILayout.Width(160));
             GUI.color = Color.white;
-            
             EditorGUILayout.EndHorizontal();
-            
-            // Show state stack
-            EditorGUILayout.LabelField("State Stack:", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("Stack (top first):", EditorStyles.miniLabel);
             EditorGUI.indentLevel++;
-            foreach (var state in GameStateManager.StateStack)
-            {
-                EditorGUILayout.LabelField($"► {state}");
-            }
+            foreach (var s in GameStateManager.StateStack) EditorGUILayout.LabelField("► " + s);
             EditorGUI.indentLevel--;
-            
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawPerformance()
         {
-            if (!showPerformance) return;
-            
             EditorGUILayout.BeginVertical("box");
-            
-            showPerformance = EditorGUILayout.Foldout(showPerformance, "Performance", true);
-            
-            if (showPerformance)
+            _showPerformance = EditorGUILayout.Foldout(_showPerformance, "Performance", true);
+            if (_showPerformance)
             {
-                var progressRect = EditorGUILayout.GetControlRect(false, 20);
-                float eventLoad = Mathf.Clamp01(EventFlowDiagnostics.EventHistory.Count / 50f);
-                EditorGUI.ProgressBar(progressRect, eventLoad, $"Events in history: {EventFlowDiagnostics.EventHistory.Count}");
-                
-                EditorGUILayout.LabelField($"Total Event Types: {eventTypes.Count}");
-                EditorGUILayout.LabelField($"Total Listeners: {listenerCounts.Values.Sum()}");
-                EditorGUILayout.LabelField($"Events This Frame: {EventFlowDiagnostics.EventsThisFrame}/{EventFlowDiagnostics.MaxEventsPerFrame}");
-                EditorGUILayout.LabelField($"Scheduled Events: {EventScheduler.Instance.ScheduledCount}");
-                EditorGUILayout.LabelField($"Repeating Events: {EventScheduler.Instance.RepeatingCount}");
+                int histCount   = EventFlowDiagnostics.GetEventHistory().Count;
+                int frameEvents = EventFlowDiagnostics.EventsThisFrame;
+                int maxFrame    = EventFlowDiagnostics.MaxEventsPerFrame;
+                int overflow    = EventFlowDiagnostics.OverflowQueueCount;
+
+                var bar = EditorGUILayout.GetControlRect(false, 18);
+                EditorGUI.ProgressBar(bar, Mathf.Clamp01(frameEvents / (float)maxFrame),
+                    "This frame: " + frameEvents + " / " + maxFrame);
+
+                EditorGUILayout.LabelField("Event types registered : " + _eventTypes.Count);
+                EditorGUILayout.LabelField("Total listeners        : " + _listenerCounts.Values.Sum());
+                EditorGUILayout.LabelField("History entries        : " + histCount);
+
+                if (overflow > 0)
+                {
+                    GUI.color = Color.yellow;
+                    EditorGUILayout.LabelField("Overflow queue         : " + overflow + " pending");
+                    GUI.color = Color.white;
+                }
+
+                EditorGUILayout.LabelField("Scheduled events       : " + EventScheduler.Instance.ScheduledCount);
+                EditorGUILayout.LabelField("Repeating events       : " + EventScheduler.Instance.RepeatingCount);
             }
-            
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawEventListeners()
         {
             EditorGUILayout.BeginVertical("box");
-            
-            showListeners = EditorGUILayout.Foldout(showListeners, "Event Listeners", true);
-            
-            if (showListeners)
+            _showListeners = EditorGUILayout.Foldout(_showListeners, "Event Listeners", true);
+            if (_showListeners)
             {
-                if (eventTypes.Count == 0)
+                if (_eventTypes.Count == 0)
                 {
-                    EditorGUILayout.HelpBox("No events registered yet. Trigger some events to see them here.", MessageType.Info);
+                    EditorGUILayout.HelpBox("No events registered yet.", MessageType.Info);
                 }
                 else
                 {
-                    foreach (Type eventType in eventTypes.OrderBy(x => x.Name))
+                    var filtered = _eventTypes
+                        .Where(t => string.IsNullOrEmpty(_search) ||
+                                    t.Name.IndexOf(_search, StringComparison.OrdinalIgnoreCase) >= 0)
+                        .OrderBy(t => t.Name)
+                        .ToList();
+
+                    for (int idx = 0; idx < filtered.Count; idx++)
                     {
-                        if (!string.IsNullOrEmpty(searchFilter) && 
-                            !eventType.Name.ToLower().Contains(searchFilter.ToLower()))
-                            continue;
-                        
-                        int count = listenerCounts.ContainsKey(eventType) ? listenerCounts[eventType] : 0;
-                        
+                        Type t       = filtered[idx];
+                        int  count   = _listenerCounts.ContainsKey(t) ? _listenerCounts[t] : 0;
+                        bool expanded = _selectedTypeIndex == idx;
+
                         EditorGUILayout.BeginHorizontal();
-                        
-                        // Select button
-                        if (GUILayout.Button("►", EditorStyles.miniButton, GUILayout.Width(20)))
-                        {
-                            selectedEventIndex = selectedEventIndex == eventTypes.IndexOf(eventType) ? -1 : eventTypes.IndexOf(eventType);
-                        }
-                        
-                        // Event name
-                        EditorGUILayout.LabelField(eventType.Name, GUILayout.Width(200));
-                        
-                        // Listener count with progress bar
-                        var rect = EditorGUILayout.GetControlRect(false, 18);
-                        float percent = count / 20f;
-                        EditorGUI.ProgressBar(rect, percent, $"{count} listener{(count != 1 ? "s" : "")}");
-                        
-                        // Jump to code button
-                        if (GUILayout.Button("Find", EditorStyles.miniButton, GUILayout.Width(50)))
-                        {
-                            FindEventInProject(eventType.Name);
-                        }
-                        
+                        if (GUILayout.Button(expanded ? "v" : ">", EditorStyles.miniButton, GUILayout.Width(22)))
+                            _selectedTypeIndex = expanded ? -1 : idx;
+                        EditorGUILayout.LabelField(t.Name, GUILayout.Width(200));
+                        var barRect = EditorGUILayout.GetControlRect(false, 18);
+                        EditorGUI.ProgressBar(barRect, Mathf.Clamp01(count / 20f),
+                            count + (count != 1 ? " listeners" : " listener"));
+                        if (GUILayout.Button("Find", EditorStyles.miniButton, GUILayout.Width(44)))
+                            FindEventInProject(t.Name);
                         EditorGUILayout.EndHorizontal();
-                        
-                        // Show expanded details
-                        if (selectedEventIndex == eventTypes.IndexOf(eventType))
+
+                        if (expanded)
                         {
                             EditorGUI.indentLevel++;
-                            EditorGUILayout.LabelField("Event Type:", eventType.FullName);
-                            EditorGUILayout.LabelField("Listeners:", EditorStyles.miniLabel);
-                            
-                            // Try to show where listeners are registered
-                            EditorGUILayout.HelpBox("Detailed listener info requires additional reflection. Check the EventBus class for implementation.", MessageType.Info);
-                            
-                            // Option to test trigger
-                            if (GUILayout.Button("Test Trigger This Event", GUILayout.Width(150)))
-                            {
-                                Debug.Log($"[Debug] Manually triggered {eventType.Name}");
-                                // This would need more complex reflection to create an instance
-                            }
-                            
+                            EditorGUILayout.LabelField("Full type: " + t.FullName, EditorStyles.miniLabel);
+                            if (_listenerDetails.ContainsKey(t) && _listenerDetails[t].Count > 0)
+                                foreach (var d in _listenerDetails[t])
+                                    EditorGUILayout.LabelField("  " + d, EditorStyles.miniLabel);
+                            else
+                                EditorGUILayout.LabelField("  No detail available.", EditorStyles.miniLabel);
                             EditorGUI.indentLevel--;
                         }
                     }
                 }
             }
-            
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawEventHistory()
         {
             EditorGUILayout.BeginVertical("box");
-            
-            showHistory = EditorGUILayout.Foldout(showHistory, "Recent Events", true);
-            
-            if (showHistory)
+            _showHistory = EditorGUILayout.Foldout(_showHistory, "Recent Events", true);
+            if (_showHistory)
             {
-                historyScrollPosition = EditorGUILayout.BeginScrollView(historyScrollPosition, GUILayout.Height(200));
-                
-                var history = EventFlowDiagnostics.EventHistory;
-                
-                if (history == null || history.Count == 0)
+                _historyScroll = EditorGUILayout.BeginScrollView(_historyScroll, GUILayout.Height(180));
+                var history = EventFlowDiagnostics.GetEventHistory();
+                if (history.Count == 0)
                 {
-                    EditorGUILayout.HelpBox("No events triggered yet. Trigger some events to see them here.", MessageType.Info);
+                    EditorGUILayout.HelpBox("No events recorded yet.", MessageType.Info);
                 }
                 else
                 {
-                    // Column headers
                     EditorGUILayout.BeginHorizontal();
                     EditorGUILayout.LabelField("Frame", EditorStyles.boldLabel, GUILayout.Width(50));
-                    EditorGUILayout.LabelField("Time", EditorStyles.boldLabel, GUILayout.Width(60));
-                    EditorGUILayout.LabelField("Event", EditorStyles.boldLabel, GUILayout.Width(150));
-                    EditorGUILayout.LabelField("Data", EditorStyles.boldLabel);
+                    EditorGUILayout.LabelField("Time",  EditorStyles.boldLabel, GUILayout.Width(56));
+                    EditorGUILayout.LabelField("Event", EditorStyles.boldLabel, GUILayout.Width(160));
+                    EditorGUILayout.LabelField("Data",  EditorStyles.boldLabel);
                     EditorGUILayout.EndHorizontal();
-                    
-                    EditorGUILayout.Space(2);
-                    
-                    foreach (var log in history)
+
+                    for (int i = history.Count - 1; i >= 0; i--)
                     {
-                        string color = log.wasBlocked ? "orange" : "lime";
-                        string blockedText = log.wasBlocked ? " [BLOCKED]" : "";
-                        
+                        var log = history[i];
                         EditorGUILayout.BeginHorizontal();
-                        
-                        // Frame
-                        EditorGUILayout.LabelField($"{log.frameCount}", GUILayout.Width(50));
-                        
-                        // Time
-                        EditorGUILayout.LabelField($"{log.time:F2}s", GUILayout.Width(60));
-                        
-                        // Event name with color
+                        EditorGUILayout.LabelField(log.frameCount.ToString(), GUILayout.Width(50));
+                        EditorGUILayout.LabelField(log.time.ToString("F2") + "s", GUILayout.Width(56));
                         GUI.color = log.wasBlocked ? Color.yellow : Color.green;
-                        EditorGUILayout.LabelField($"{log.eventType}{blockedText}", GUILayout.Width(150));
+                        EditorGUILayout.LabelField(
+                            log.wasBlocked ? log.eventType + " [BLOCKED]" : log.eventType,
+                            GUILayout.Width(160));
                         GUI.color = Color.white;
-                        
-                        // Data (truncated)
-                        string data = log.eventData;
-                        if (data.Length > 50)
-                            data = data.Substring(0, 47) + "...";
+                        string data = log.eventData != null && log.eventData.Length > 60
+                            ? log.eventData.Substring(0, 57) + "..."
+                            : log.eventData ?? "";
                         EditorGUILayout.LabelField(data, EditorStyles.wordWrappedLabel);
-                        
                         EditorGUILayout.EndHorizontal();
                     }
                 }
-                
                 EditorGUILayout.EndScrollView();
             }
-            
             EditorGUILayout.EndVertical();
         }
 
         private void DrawPipelines()
         {
             EditorGUILayout.BeginVertical("box");
-
-            showPipelines = EditorGUILayout.Foldout(showPipelines, "Pipelines", true);
-
-            if (showPipelines)
+            _showPipelines = EditorGUILayout.Foldout(_showPipelines, "Pipelines", true);
+            if (_showPipelines)
             {
                 var pipelines = EventFlowController.GetPipelines();
-
                 if (pipelines.Count == 0)
                 {
-                    EditorGUILayout.HelpBox("No pipelines registered yet. Add steps with EventFlow.AddStep<T>().", MessageType.Info);
+                    EditorGUILayout.HelpBox("No pipeline steps registered. Use EventFlow.AddStep<T>().", MessageType.Info);
                 }
                 else
                 {
                     foreach (var kvp in pipelines.OrderBy(x => x.Key.Name))
                     {
-                        if (!string.IsNullOrEmpty(searchFilter) &&
-                            !kvp.Key.Name.ToLower().Contains(searchFilter.ToLower()))
-                        {
-                            continue;
-                        }
+                        if (!string.IsNullOrEmpty(_search) &&
+                            kvp.Key.Name.IndexOf(_search, StringComparison.OrdinalIgnoreCase) < 0) continue;
 
-                        var steps = EventFlowController.GetPipelineSteps(kvp.Key);
-                        var executionInfo = EventFlowController.GetPipelineExecutionInfo(kvp.Key);
-                        int stepCount = steps?.Count ?? 0;
+                        var steps         = EventFlowController.GetPipelineSteps(kvp.Key);
+                        var execInfo      = EventFlowController.GetPipelineExecutionInfo(kvp.Key);
+                        int stepCount     = steps != null ? steps.Count : 0;
                         int listenerCount = EventBus.GetListenerCount(kvp.Key);
 
                         EditorGUILayout.BeginVertical("box");
-                        EditorGUILayout.LabelField($"{kvp.Key.Name} -> {stepCount} step{(stepCount != 1 ? "s" : "")}", EditorStyles.boldLabel);
-                        EditorGUILayout.LabelField($"Execution count: {executionInfo.ExecutionCount}", EditorStyles.miniLabel);
-                        if (!string.IsNullOrEmpty(executionInfo.LastExecutedStepName))
+                        EditorGUILayout.LabelField(
+                            kvp.Key.Name + "  (" + stepCount + " step" + (stepCount != 1 ? "s" : "") +
+                            ", " + listenerCount + " listener" + (listenerCount != 1 ? "s" : "") + ")",
+                            EditorStyles.boldLabel);
+
+                        EditorGUILayout.LabelField("Executions: " + execInfo.ExecutionCount, EditorStyles.miniLabel);
+                        if (!string.IsNullOrEmpty(execInfo.LastExecutedStepName))
                         {
-                            string lastStatus = executionInfo.LastExecutionFailed
-                                ? "failed"
-                                : executionInfo.LastDispatchSucceeded ? "dispatched" : "stopped";
+                            string status = execInfo.LastExecutionFailed ? "FAILED"
+                                : execInfo.LastDispatchSucceeded ? "dispatched" : "stopped";
                             EditorGUILayout.LabelField(
-                                $"Last execution: [{executionInfo.LastExecutedStepName}] -> {lastStatus}",
+                                "Last: [" + execInfo.LastExecutedStepName + "] -> " + status,
                                 EditorStyles.miniLabel);
                         }
-                        EditorGUILayout.LabelField($"Dispatch target: {listenerCount} listener{(listenerCount != 1 ? "s" : "")}", EditorStyles.miniLabel);
-                        EditorGUILayout.Space(2f);
 
-                        if (steps == null || steps.Count == 0)
+                        if (steps != null)
                         {
-                            EditorGUILayout.LabelField("No steps registered", EditorStyles.miniLabel);
-                            EditorGUILayout.EndVertical();
-                            continue;
-                        }
-
-                        for (int i = 0; i < steps.Count; i++)
-                        {
-                            PipelineStepInfo step = steps[i];
-                            string enabledLabel = step.Enabled ? "Enabled" : "Disabled";
-                            bool isLastExecuted = string.Equals(step.Name, executionInfo.LastExecutedStepName, StringComparison.Ordinal);
-                            Color previousColor = GUI.color;
-                            if (isLastExecuted)
+                            foreach (var step in steps)
                             {
-                                GUI.color = executionInfo.LastExecutionFailed ? new Color(1f, 0.6f, 0.6f) : new Color(0.65f, 1f, 0.65f);
+                                bool isLast = step.Name == execInfo.LastExecutedStepName;
+                                if (isLast)
+                                    GUI.color = execInfo.LastExecutionFailed
+                                        ? new Color(1f, 0.5f, 0.5f)
+                                        : new Color(0.6f, 1f, 0.6f);
+                                EditorGUILayout.LabelField(
+                                    "  [" + step.Order + "] " + step.Name +
+                                    "  |  priority " + step.Priority +
+                                    "  |  " + (step.Enabled ? "enabled" : "DISABLED"));
+                                if (isLast) GUI.color = Color.white;
                             }
-                            EditorGUILayout.LabelField(
-                                $"[{step.Order}] {step.Name} | Priority: {step.Priority} | {enabledLabel}",
-                                EditorStyles.label);
-                            GUI.color = previousColor;
                         }
-                        EditorGUILayout.Space(2f);
-                        EditorGUILayout.LabelField(
-                            $"Flow: {kvp.Key.Name} -> steps -> dispatched to {listenerCount} listener{(listenerCount != 1 ? "s" : "")}",
-                            EditorStyles.miniLabel);
                         EditorGUILayout.EndVertical();
                     }
                 }
             }
-
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawScheduler()
         {
-            if (!showScheduler) return;
-            
             EditorGUILayout.BeginVertical("box");
-            
-            showScheduler = EditorGUILayout.Foldout(showScheduler, "Event Scheduler", true);
-            
-            if (showScheduler)
+            _showScheduler = EditorGUILayout.Foldout(_showScheduler, "Scheduler", true);
+            if (_showScheduler)
             {
-                EditorGUILayout.LabelField($"Scheduled Events: {EventScheduler.Instance.ScheduledCount}");
-                EditorGUILayout.LabelField($"Repeating Events: {EventScheduler.Instance.RepeatingCount}");
-                
-                if (EventScheduler.Instance.ScheduledCount > 0 || EventScheduler.Instance.RepeatingCount > 0)
+                int scheduled = EventScheduler.Instance.ScheduledCount;
+                int repeating = EventScheduler.Instance.RepeatingCount;
+                EditorGUILayout.LabelField("One-shot pending : " + scheduled);
+                EditorGUILayout.LabelField("Repeating active : " + repeating);
+                if (scheduled > 0 || repeating > 0)
                 {
                     if (GUILayout.Button("Cancel All Scheduled Events"))
                     {
-                        if (EditorUtility.DisplayDialog("Cancel All", "Cancel all scheduled and repeating events?", "Yes", "No"))
-                        {
+                        if (EditorUtility.DisplayDialog("Cancel All",
+                            "Cancel all scheduled and repeating events?", "Yes", "No"))
                             EventScheduler.Instance.CancelAll();
-                        }
                     }
                 }
             }
-            
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawStatePermissions()
         {
             EditorGUILayout.BeginVertical("box");
-            
-            showStatePermissions = EditorGUILayout.Foldout(showStatePermissions, "Event Permissions by State", true);
-            
-            if (showStatePermissions)
+            _showPermissions = EditorGUILayout.Foldout(_showPermissions, "State Permissions", true);
+            if (_showPermissions)
             {
-                EditorGUILayout.HelpBox("Configure which events can trigger in which states. Use GameStateManager.AllowEventInStates<T>() in code.", MessageType.Info);
-                
-                // Simple permission viewer
-                if (eventTypes.Count > 0)
+                if (_permStrings.Count == 0)
                 {
-                    foreach (Type eventType in eventTypes.Take(5))
+                    EditorGUILayout.HelpBox("No event permissions configured. All events fire in all states.", MessageType.Info);
+                }
+                else
+                {
+                    foreach (var kvp in _permStrings.OrderBy(x => x.Key.Name))
                     {
+                        if (!string.IsNullOrEmpty(_search) &&
+                            kvp.Key.Name.IndexOf(_search, StringComparison.OrdinalIgnoreCase) < 0) continue;
+
                         EditorGUILayout.BeginHorizontal();
-                        EditorGUILayout.LabelField(eventType.Name, GUILayout.Width(150));
-                        
-                        // Check if there are permissions for this event
-                        var permissionsField = typeof(GameStateManager).GetField("eventPermissions", BindingFlags.Static | BindingFlags.NonPublic);
-                        if (permissionsField != null)
-                        {
-                            var permissions = permissionsField.GetValue(null) as Dictionary<Type, List<GameStateManager.GameState>>;
-                            if (permissions != null && permissions.ContainsKey(eventType))
-                            {
-                                string states = string.Join(", ", permissions[eventType]);
-                                EditorGUILayout.LabelField(states);
-                            }
-                            else
-                            {
-                                EditorGUILayout.LabelField("Allowed in all states", EditorStyles.miniLabel);
-                            }
-                        }
-                        
+                        EditorGUILayout.LabelField(kvp.Key.Name, GUILayout.Width(180));
+                        EditorGUILayout.LabelField(kvp.Value);
                         EditorGUILayout.EndHorizontal();
-                    }
-                    
-                    if (eventTypes.Count > 5)
-                    {
-                        EditorGUILayout.LabelField($"... and {eventTypes.Count - 5} more events");
                     }
                 }
             }
-            
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawControls()
         {
             EditorGUILayout.BeginVertical("box");
-            
             EditorGUILayout.LabelField("Controls", EditorStyles.boldLabel);
-            
             EditorGUILayout.BeginHorizontal();
-            
-            GUI.backgroundColor = Color.yellow;
-            if (GUILayout.Button("Clear History", GUILayout.Height(30)))
-            {
+
+            GUI.backgroundColor = new Color(1f, 0.9f, 0.3f);
+            if (GUILayout.Button("Clear History", GUILayout.Height(28)))
                 EventFlowDiagnostics.ClearHistory();
-            }
-            
-            GUI.backgroundColor = Color.red;
-            if (GUILayout.Button("Clear All Listeners", GUILayout.Height(30)))
+
+            GUI.backgroundColor = new Color(1f, 0.4f, 0.4f);
+            if (GUILayout.Button("Clear All Listeners", GUILayout.Height(28)))
             {
-                if (EditorUtility.DisplayDialog("Warning", 
-                    "This will remove ALL event listeners. Are you sure?", 
-                    "Yes", "Cancel"))
+                if (EditorUtility.DisplayDialog("Warning",
+                    "Remove ALL event listeners? This cannot be undone.", "Yes", "Cancel"))
                 {
-                    EventFlow.ClearListeners();
-                    RefreshData();
+                    EventBus.ClearAll();
+                    Refresh();
                 }
             }
-            
+
             GUI.backgroundColor = Color.white;
-            
-            if (GUILayout.Button("Reset Game State", GUILayout.Height(30)))
-            {
+            if (GUILayout.Button("Reset Game State", GUILayout.Height(28)))
                 GameStateManager.Reset();
-            }
-            
+
             EditorGUILayout.EndHorizontal();
-            
-            EditorGUILayout.Space(5);
-            
+
             EditorGUILayout.HelpBox(
-                "Use EventFlow.Register<T>() to listen for events\n" +
-                "Use EventFlow.Trigger<T>() to fire events\n" +
-                "Use GameStateManager.PushState() to change states",
-                MessageType.Info
-            );
-            
+                "Register:    EventFlow.Register<T>(handler, scope)\n" +
+                "Trigger:     EventFlow.Trigger(new MyEvent { ... })\n" +
+                "State:       GameStateManager.PushState(GameState.Paused)\n" +
+                "Scene clear: EventFlow.ClearListeners(\"SceneName\")",
+                MessageType.Info);
+
             EditorGUILayout.EndVertical();
         }
-        
-        private Color GetStateColor(GameStateManager.GameState state)
+
+        private static Color GetStateColor(GameStateManager.GameState state)
         {
             switch (state)
             {
-                case GameStateManager.GameState.Playing:
-                    return Color.green;
-                case GameStateManager.GameState.Paused:
-                    return Color.yellow;
-                case GameStateManager.GameState.GameOver:
-                    return Color.red;
-                case GameStateManager.GameState.Loading:
-                    return Color.cyan;
-                case GameStateManager.GameState.MainMenu:
-                    return Color.blue;
-                case GameStateManager.GameState.Bootstrapping:
-                    return Color.gray;
-                default:
-                    return Color.white;
+                case GameStateManager.GameState.Playing:        return Color.green;
+                case GameStateManager.GameState.Paused:         return Color.yellow;
+                case GameStateManager.GameState.GameOver:       return Color.red;
+                case GameStateManager.GameState.Loading:        return Color.cyan;
+                case GameStateManager.GameState.MainMenu:       return new Color(0.5f, 0.7f, 1f);
+                case GameStateManager.GameState.Bootstrapping:  return Color.gray;
+                default:                                        return Color.white;
             }
         }
-        
-        private void FindEventInProject(string eventTypeName)
+
+        private static void FindEventInProject(string typeName)
         {
-            // Search for scripts that might contain this event
-            string[] guids = AssetDatabase.FindAssets($"t:script {eventTypeName}");
-            
-            if (guids.Length > 0)
+            string[] guids = AssetDatabase.FindAssets("t:script " + typeName);
+            foreach (string guid in guids)
             {
-                foreach (string guid in guids)
+                string path    = AssetDatabase.GUIDToAssetPath(guid);
+                string content = System.IO.File.ReadAllText(path);
+                if (content.Contains("struct " + typeName) || content.Contains("class " + typeName))
                 {
-                    string path = AssetDatabase.GUIDToAssetPath(guid);
-                    var asset = AssetDatabase.LoadAssetAtPath<MonoScript>(path);
-                    
-                    // Check if the file contains the event type
-                    string content = System.IO.File.ReadAllText(path);
-                    if (content.Contains($"struct {eventTypeName}") || content.Contains($"class {eventTypeName}"))
-                    {
-                        EditorGUIUtility.PingObject(asset);
-                        EditorUtility.DisplayDialog("Found", $"Event found in: {path}", "OK");
-                        return;
-                    }
+                    EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<MonoScript>(path));
+                    EditorUtility.DisplayDialog("Found", "Event defined in:\n" + path, "OK");
+                    return;
                 }
-                
-                // If we didn't find a matching struct, just ping the first script
-                string firstPath = AssetDatabase.GUIDToAssetPath(guids[0]);
-                var firstAsset = AssetDatabase.LoadAssetAtPath<MonoScript>(firstPath);
-                EditorGUIUtility.PingObject(firstAsset);
             }
+            if (guids.Length > 0)
+                EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<MonoScript>(
+                    AssetDatabase.GUIDToAssetPath(guids[0])));
             else
-            {
-                EditorUtility.DisplayDialog("Not Found", $"Could not find any script containing {eventTypeName}", "OK");
-            }
+                EditorUtility.DisplayDialog("Not Found",
+                    "No script found containing '" + typeName + "'", "OK");
         }
     }
 }

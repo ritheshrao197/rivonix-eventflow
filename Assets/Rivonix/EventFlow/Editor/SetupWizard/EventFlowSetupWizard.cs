@@ -1,367 +1,289 @@
 #if UNITY_EDITOR
-using UnityEditor;
-using UnityEngine;
-using UnityEditor.SceneManagement;
-using UnityEngine.SceneManagement;
 using System.IO;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace Rivonix.EventFlow.Editor
 {
     /// <summary>
-    /// Setup wizard for one-click configuration of Rivonix EventFlow
+    /// One-click setup wizard for Rivonix EventFlow.
+    /// Opens via Tools → Rivonix → EventFlow → Setup Wizard.
     /// </summary>
     public class EventFlowSetupWizard : EditorWindow
     {
-        private bool setupGlobalSystem = true;
-        private bool createExampleEvents = true;
-        private bool createSampleScene = false;
-        private bool createEventChannels = true;
-        private GameStateManager.GameState initialState = GameStateManager.GameState.MainMenu;
-        
+        private bool _setupGlobalSystem   = true;
+        private bool _createExampleEvents = true;
+        private bool _createChannels      = true;
+        private bool _createSampleScene   = false;
+
+        private GameStateManager.GameState _initialState = GameStateManager.GameState.MainMenu;
+
         [MenuItem("Tools/Rivonix/EventFlow/Setup Wizard")]
         public static void ShowWindow()
-        {
-            GetWindow<EventFlowSetupWizard>("Rivonix EventFlow Setup");
-        }
-        
+            => GetWindow<EventFlowSetupWizard>("EventFlow Setup");
+
         private void OnGUI()
         {
-            // Draw header
-            GUILayout.Label("RIVONIX EVENTFLOW", EditorStyles.boldLabel);
+            GUILayout.Label("Rivonix EventFlow", EditorStyles.boldLabel);
             GUILayout.Label("Professional Event System for Unity", EditorStyles.miniLabel);
-            
             EditorGUILayout.Space(10);
-            
+
             EditorGUILayout.HelpBox(
-                "This wizard will set up Rivonix EventFlow in your project.\n" +
-                "All settings can be changed later.",
-                MessageType.Info
-            );
-            
-            EditorGUILayout.Space(20);
-            
-            // Setup options
-            DrawSetupOptions();
-            
-            EditorGUILayout.Space(20);
-            
-            // Action buttons
-            DrawActionButtons();
-            
-            EditorGUILayout.Space(10);
-            
-            // Footer
+                "This wizard configures EventFlow in your project.\n" +
+                "All options can be changed later.",
+                MessageType.Info);
+
+            EditorGUILayout.Space(16);
+            DrawOptions();
+            EditorGUILayout.Space(16);
+            DrawButtons();
+            EditorGUILayout.Space(8);
             DrawFooter();
         }
-        
-        private void DrawSetupOptions()
+
+        // ── Options ──────────────────────────────────────────────────────────────
+
+        private void DrawOptions()
         {
             GUILayout.Label("Setup Options", EditorStyles.boldLabel);
-            
             EditorGUI.indentLevel++;
-            
-            setupGlobalSystem = EditorGUILayout.Toggle(new GUIContent(
-                "Create Global Event System", 
-                "Adds GlobalEventSystem to your first scene"
-            ), setupGlobalSystem);
-            
-            if (setupGlobalSystem)
+
+            _setupGlobalSystem = EditorGUILayout.Toggle(
+                new GUIContent("Create Global Event System", "Adds GlobalEventSystem to the active scene"),
+                _setupGlobalSystem);
+
+            if (_setupGlobalSystem)
             {
                 EditorGUI.indentLevel++;
-                initialState = (GameStateManager.GameState)EditorGUILayout.EnumPopup(
-                    new GUIContent("Initial State", "Starting game state"), 
-                    initialState
-                );
+                _initialState = (GameStateManager.GameState)EditorGUILayout.EnumPopup(
+                    new GUIContent("Initial State", "Starting game state after boot"),
+                    _initialState);
                 EditorGUI.indentLevel--;
             }
-            
-            createExampleEvents = EditorGUILayout.Toggle(new GUIContent(
-                "Create Example Events", 
-                "Generates example event definitions"
-            ), createExampleEvents);
-            
-            createEventChannels = EditorGUILayout.Toggle(new GUIContent(
-                "Create Event Channels (SO)", 
-                "Creates ScriptableObject event channels"
-            ), createEventChannels);
-            
-            createSampleScene = EditorGUILayout.Toggle(new GUIContent(
-                "Create Sample Scene", 
-                "Creates a sample scene with working examples"
-            ), createSampleScene);
-            
+
+            _createExampleEvents = EditorGUILayout.Toggle(
+                new GUIContent("Create Example Events", "Generates a ready-to-use ExampleEvents.cs"),
+                _createExampleEvents);
+
+            _createChannels = EditorGUILayout.Toggle(
+                new GUIContent("Create Event Channel Assets", "Creates typed ScriptableObject channel assets"),
+                _createChannels);
+
+            _createSampleScene = EditorGUILayout.Toggle(
+                new GUIContent("Create Sample Scene", "Creates a minimal demo scene"),
+                _createSampleScene);
+
             EditorGUI.indentLevel--;
         }
-        
-        private void DrawActionButtons()
+
+        // ── Buttons ──────────────────────────────────────────────────────────────
+
+        private void DrawButtons()
         {
             EditorGUILayout.BeginHorizontal();
-            
-            GUI.backgroundColor = Color.green;
-            if (GUILayout.Button("Setup EventFlow", GUILayout.Height(40)))
-            {
-                SetupEventSystem();
-            }
-            
-            GUI.backgroundColor = Color.cyan;
-            if (GUILayout.Button("Documentation", GUILayout.Height(40)))
-            {
+
+            GUI.backgroundColor = new Color(0.5f, 1f, 0.5f);
+            if (GUILayout.Button("Setup EventFlow", GUILayout.Height(38)))
+                RunSetup();
+
+            GUI.backgroundColor = new Color(0.5f, 0.8f, 1f);
+            if (GUILayout.Button("Documentation", GUILayout.Height(38)))
                 Application.OpenURL("https://github.com/Rivonix/EventFlow/wiki");
-            }
-            
+
             EditorGUILayout.EndHorizontal();
-            
             EditorGUILayout.BeginHorizontal();
-            
-            GUI.backgroundColor = Color.yellow;
-            if (GUILayout.Button("Debug Window", GUILayout.Height(30)))
-            {
+
+            GUI.backgroundColor = new Color(1f, 0.95f, 0.4f);
+            if (GUILayout.Button("Open Debug Window", GUILayout.Height(28)))
                 EditorApplication.ExecuteMenuItem("Tools/Rivonix/EventFlow/Debug Window");
-            }
-            
+
             GUI.backgroundColor = Color.white;
-            if (GUILayout.Button("Check for Updates", GUILayout.Height(30)))
-            {
-                CheckForUpdates();
-            }
-            
+            if (GUILayout.Button("Check for Updates", GUILayout.Height(28)))
+                EditorUtility.DisplayDialog("Up to Date", "You are running Rivonix EventFlow v1.1.0.", "OK");
+
             EditorGUILayout.EndHorizontal();
+            GUI.backgroundColor = Color.white;
         }
-        
+
         private void DrawFooter()
         {
             EditorGUILayout.BeginVertical("box");
-            GUILayout.Label("Rivonix EventFlow v1.0.0", EditorStyles.centeredGreyMiniLabel);
+            GUILayout.Label("Rivonix EventFlow v1.1.0", EditorStyles.centeredGreyMiniLabel);
             GUILayout.Label("© 2024 Rivonix. All rights reserved.", EditorStyles.centeredGreyMiniLabel);
             EditorGUILayout.EndVertical();
         }
-        
-        private void SetupEventSystem()
+
+        // ── Setup logic ──────────────────────────────────────────────────────────
+
+        private void RunSetup()
         {
-            // Create folders if they don't exist
-            CreateFolderStructure();
-            
-            // Create global event system in current scene
-            if (setupGlobalSystem)
-            {
-                CreateGlobalEventSystem();
-            }
-            
-            // Create example events
-            if (createExampleEvents)
-            {
-                CreateExampleEvents();
-            }
-            
-            // Create event channels
-            if (createEventChannels)
-            {
-                CreateEventChannels();
-            }
-            
-            // Create sample scene
-            if (createSampleScene)
-            {
-                CreateSampleScene();
-            }
-            
+            CreateFolders();
+            if (_setupGlobalSystem)   CreateGlobalEventSystem();
+            if (_createExampleEvents) CreateExampleEvents();
+            if (_createChannels)      CreateEventChannelAssets();
+            if (_createSampleScene)   CreateSampleScene();
+
             AssetDatabase.Refresh();
-            
+
             EditorUtility.DisplayDialog(
                 "Setup Complete",
-                "Rivonix EventFlow has been set up successfully!\n\n" +
+                "Rivonix EventFlow v1.1.0 is ready!\n\n" +
                 "Next steps:\n" +
-                "1. Check the Debug Window (Tools > Rivonix > EventFlow > Debug Window)\n" +
-                "2. Explore the Samples folder for examples\n" +
-                "3. Read the Documentation\n\n" +
+                "  1. Open the Debug Window (Tools → Rivonix → EventFlow → Debug Window)\n" +
+                "  2. Browse the Samples folder for usage examples\n" +
+                "  3. Read the Documentation\n\n" +
                 "Happy coding!",
-                "Get Started"
-            );
+                "Get Started");
         }
-        
-        private void CreateFolderStructure()
+
+        private static void CreateFolders()
         {
-            string[] folders = {
+            string[] folders =
+            {
                 "Assets/Rivonix",
                 "Assets/Rivonix/EventFlow",
                 "Assets/Rivonix/EventFlow/Runtime",
                 "Assets/Rivonix/EventFlow/Editor",
                 "Assets/Rivonix/EventFlow/Channels",
                 "Assets/Rivonix/EventFlow/Samples",
-                "Assets/Rivonix/EventFlow/Samples/Basic",
                 "Assets/Rivonix/EventFlow/Samples/Events",
                 "Assets/Rivonix/EventFlow/Samples/Scenes",
-                "Assets/Rivonix/EventFlow/Samples/UI",
                 "Assets/Rivonix/EventFlow/Documentation"
             };
-            
+
             foreach (string folder in folders)
             {
                 if (!AssetDatabase.IsValidFolder(folder))
-                {
                     Directory.CreateDirectory(folder);
-                }
             }
-            
-            Debug.Log("[Rivonix] Created folder structure");
+
+            Debug.Log("[Rivonix] Folder structure ready.");
         }
-        
+
         private void CreateGlobalEventSystem()
         {
-            // Check if one already exists
-            var existing = GameObject.FindObjectOfType<GlobalEventSystem>();
-            if (existing != null)
+            if (Object.FindObjectOfType<GlobalEventSystem>() != null)
             {
-                Debug.Log("[Rivonix] Global Event System already exists in scene");
+                Debug.Log("[Rivonix] GlobalEventSystem already present in scene — skipped.");
                 return;
             }
-            
-            // Create new GameObject with GlobalEventSystem
-            GameObject go = new GameObject("Rivonix_EventFlow");
-            var system = go.AddComponent<GlobalEventSystem>();
-            
-            // Set initial state via serialized property
-            var serialized = new SerializedObject(system);
-            serialized.FindProperty("initialState").enumValueIndex = (int)initialState;
-            serialized.ApplyModifiedProperties();
-            
-            // Mark scene as dirty
-            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-            
-            Debug.Log("[Rivonix] Created Global Event System in current scene");
-        }
-        
-        private void CreateExampleEvents()
-        {
-            string exampleCode = @"using Rivonix.EventFlow;
 
-// Example game events for Rivonix EventFlow
+            var go     = new GameObject("[EventFlow] GlobalEventSystem");
+            var system = go.AddComponent<GlobalEventSystem>();
+
+            var so = new SerializedObject(system);
+            so.FindProperty("initialState").enumValueIndex = (int)_initialState;
+            so.ApplyModifiedProperties();
+
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            Debug.Log("[Rivonix] GlobalEventSystem added to active scene.");
+        }
+
+        private static void CreateExampleEvents()
+        {
+            const string code = @"using Rivonix.EventFlow;
+using UnityEngine;
+
+// ──────────────────────────────────────────────────────
+//  Rivonix EventFlow — example event definitions
+//  All events are structs: zero allocations, zero GC.
+// ──────────────────────────────────────────────────────
+
 public struct PlayerScoredEvent : IEvent
 {
-    public int points;
-    public string enemyTag;
+    public int   points;
     public float comboMultiplier;
+    public string enemyTag;
 }
 
 public struct PlayerDamagedEvent : IEvent
 {
-    public int damage;
-    public string source;
-    public UnityEngine.Vector3 position;
+    public int     damage;
+    public string  source;
+    public Vector3 position;
 }
 
 public struct PlayerDiedEvent : IEvent
 {
-    public int finalScore;
+    public int   finalScore;
     public float playTime;
     public string killedBy;
 }
 
 public struct GameStartEvent : IEvent
 {
-    public int levelNumber;
+    public int    levelNumber;
     public string levelName;
-    public int difficulty;
+    public int    difficulty;
 }
 
-public struct GamePausedEvent : IEvent { }
+public struct GamePausedEvent   : IEvent { }
+public struct GameResumedEvent  : IEvent { }
 
-public struct GameResumedEvent : IEvent { }
-
-public struct OptionsChangedEvent : IEvent
+public struct LevelCompleteEvent : IEvent
 {
-    public float volume;
-    public bool fullscreen;
-    public int resolutionIndex;
+    public int   levelNumber;
+    public float completionTime;
+    public int   starsEarned;
 }
 
 public struct CollectiblePickupEvent : IEvent
 {
-    public string itemId;
-    public int value;
-    public UnityEngine.Vector3 position;
+    public string  itemId;
+    public int     value;
+    public Vector3 position;
 }
 
-public struct LevelCompleteEvent : IEvent
+public struct OptionsChangedEvent : IEvent
 {
-    public int levelNumber;
-    public float completionTime;
-    public int starsEarned;
+    public float volume;
+    public bool  fullscreen;
+    public int   resolutionIndex;
 }
 ";
-            
-            File.WriteAllText("Assets/Rivonix/EventFlow/Samples/Events/ExampleEvents.cs", exampleCode);
-            Debug.Log("[Rivonix] Created example events");
+            const string path = "Assets/Rivonix/EventFlow/Samples/Events/ExampleEvents.cs";
+            File.WriteAllText(path, code);
+            Debug.Log($"[Rivonix] Example events written to {path}");
         }
-        
-        private void CreateEventChannels()
+
+        private static void CreateEventChannelAssets()
         {
-            // Create some default event channel assets
-            var channelTypes = new[] { 
-                typeof(IntEventChannelSO), 
-                typeof(FloatEventChannelSO), 
+            var channelTypes = new[]
+            {
+                typeof(IntEventChannelSO),
+                typeof(FloatEventChannelSO),
                 typeof(StringEventChannelSO),
                 typeof(BoolEventChannelSO),
                 typeof(Vector3EventChannelSO)
             };
-            
+
             foreach (var type in channelTypes)
             {
-                var instance = ScriptableObject.CreateInstance(type);
-                string assetName = type.Name.Replace("EventChannelSO", "");
-                string path = $"Assets/Rivonix/EventFlow/Channels/{assetName}Channel.asset";
-                
-                AssetDatabase.CreateAsset(instance, path);
+                string label = type.Name.Replace("EventChannelSO", "");
+                string path  = $"Assets/Rivonix/EventFlow/Channels/{label}Channel.asset";
+                if (!File.Exists(path))
+                {
+                    var instance = ScriptableObject.CreateInstance(type);
+                    AssetDatabase.CreateAsset(instance, path);
+                }
             }
-            
-            Debug.Log("[Rivonix] Created event channel assets");
+
+            Debug.Log("[Rivonix] Event channel assets created.");
         }
-        
-        private void CreateSampleScene()
+
+        private static void CreateSampleScene()
         {
-            // Create a new scene
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
-            scene.name = "Rivonix_EventFlow_Sample";
-            
-            // Create event system
-            GameObject go = new GameObject("Rivonix_EventFlow");
-            go.AddComponent<GlobalEventSystem>();
-            
-            // Create example listener
-            GameObject listener = new GameObject("ExampleListener");
-            listener.AddComponent<ExampleEventListener>();
-            
-            // Create UI text for demo
-            var canvasGO = new GameObject("Canvas");
-            var canvas = canvasGO.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasGO.AddComponent<UnityEngine.UI.CanvasScaler>();
-            canvasGO.AddComponent<UnityEngine.UI.GraphicRaycaster>();
-            
-            var textGO = new GameObject("Instructions");
-            textGO.transform.SetParent(canvasGO.transform);
-            var text = textGO.AddComponent<UnityEngine.UI.Text>();
-            text.text = "Rivonix EventFlow Sample Scene\n\nPress SPACE to trigger PlayerScoredEvent\nPress D to trigger PlayerDamagedEvent\nCheck Console for output";
-            text.fontSize = 24;
-            text.alignment = TextAnchor.MiddleCenter;
-            text.color = Color.white;
-            text.rectTransform.anchorMin = Vector2.zero;
-            text.rectTransform.anchorMax = Vector2.one;
-            text.rectTransform.sizeDelta = Vector2.zero;
-            
-            // Save scene
-            EditorSceneManager.SaveScene(scene, "Assets/Rivonix/EventFlow/Samples/Scenes/SampleScene.unity");
-            
-            Debug.Log("[Rivonix] Created sample scene");
-        }
-        
-        private void CheckForUpdates()
-        {
-            Debug.Log("[Rivonix] Checking for updates...");
-            EditorUtility.DisplayDialog("Updates", "You are using the latest version of Rivonix EventFlow (v1.0.0)", "OK");
+
+            var systemGO = new GameObject("[EventFlow] GlobalEventSystem");
+            systemGO.AddComponent<GlobalEventSystem>();
+
+            const string savePath = "Assets/Rivonix/EventFlow/Samples/Scenes/EventFlow_Sample.unity";
+            EditorSceneManager.SaveScene(scene, savePath);
+            Debug.Log($"[Rivonix] Sample scene saved to {savePath}");
         }
     }
 }
 #endif
-
-

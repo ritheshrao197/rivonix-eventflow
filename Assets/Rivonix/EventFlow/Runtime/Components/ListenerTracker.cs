@@ -5,45 +5,42 @@ using UnityEngine;
 namespace Rivonix.EventFlow
 {
     /// <summary>
-    /// Internal component that tracks event listeners for automatic cleanup.
-    /// Attached automatically when using EventFlow.Register(owner, handler).
+    /// Internal component attached to a GameObject by EventBus.Register(owner, handler).
+    /// Automatically unregisters all tracked listeners when the GameObject is destroyed.
+    ///
+    /// FIX — Eliminated reflection in OnDestroy.
+    ///   Original code used GetMethod("Unregister").MakeGenericMethod(type).Invoke(...)
+    ///   for each listener, which is slow, fragile, and boxes the delegate.
+    ///   We now store a pre-built Action that calls the correct generic Unregister
+    ///   overload directly, captured at registration time.
     /// </summary>
-    public class ListenerTracker : MonoBehaviour
+    [DisallowMultipleComponent]
+    public sealed class ListenerTracker : MonoBehaviour
     {
-        private List<TrackerEntry> trackedListeners = new List<TrackerEntry>();
-        
-        private struct TrackerEntry
+        // Each entry is a zero-argument Action that calls EventBus.Unregister<T>(handler)
+        // with the correct generic type already baked in — no reflection needed at cleanup.
+        private readonly List<Action> _unregisterActions = new List<Action>();
+
+        /// <summary>
+        /// Called by EventBus.Register to record a cleanup action for this listener.
+        /// The Action captures the handler directly, so Unregister is a direct call.
+        /// </summary>
+        internal void AddCleanupAction(Action unregisterAction)
         {
-            public Type eventType;
-            public Delegate handler;
+            _unregisterActions.Add(unregisterAction);
         }
-        
-        public void AddListener(Type eventType, Delegate handler)
-        {
-            trackedListeners.Add(new TrackerEntry 
-            { 
-                eventType = eventType, 
-                handler = handler 
-            });
-        }
-        
+
         private void OnDestroy()
         {
-            foreach (var entry in trackedListeners)
+            foreach (Action unregister in _unregisterActions)
             {
-                try
-                {
-                    var method = typeof(EventBus).GetMethod("Unregister");
-                    var generic = method.MakeGenericMethod(entry.eventType);
-                    generic.Invoke(null, new object[] { entry.handler });
-                }
+                try { unregister(); }
                 catch (Exception e)
                 {
-                    Debug.LogError($"Error unregistering listener: {e.Message}");
+                    Debug.LogError($"[EventFlow] ListenerTracker cleanup error on {gameObject.name}: {e.Message}");
                 }
             }
-            
-            trackedListeners.Clear();
+            _unregisterActions.Clear();
         }
     }
 }

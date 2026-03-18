@@ -5,7 +5,8 @@ using UnityEngine;
 namespace Rivonix.EventFlow.Editor
 {
     /// <summary>
-    /// Custom property drawer for IEvent types to make them editable in the inspector
+    /// Custom property drawer for IEvent types so serialized event fields
+    /// display with a foldout and editable child fields in the Inspector.
     /// </summary>
     [CustomPropertyDrawer(typeof(IEvent), true)]
     public class EventDrawer : PropertyDrawer
@@ -13,69 +14,48 @@ namespace Rivonix.EventFlow.Editor
         public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
         {
             EditorGUI.BeginProperty(position, label, property);
-            
-            // Draw foldout
+
             property.isExpanded = EditorGUI.Foldout(
                 new Rect(position.x, position.y, position.width, EditorGUIUtility.singleLineHeight),
-                property.isExpanded,
-                label,
-                true
-            );
-            
+                property.isExpanded, label, true);
+
             if (property.isExpanded)
             {
                 EditorGUI.indentLevel++;
-                
-                // Get the height of the foldout
-                float currentY = position.y + EditorGUIUtility.singleLineHeight + 2;
-                
-                // Draw each field of the event struct
-                var iterator = property.Copy();
-                var endProperty = iterator.GetEndProperty();
-                
-                iterator.NextVisible(true); // Skip the first child (script field)
-                
-                while (!SerializedProperty.EqualContents(iterator, endProperty))
+                float y        = position.y + EditorGUIUtility.singleLineHeight + 2f;
+                var   iter     = property.Copy();
+                var   endProp  = iter.GetEndProperty();
+                iter.NextVisible(true);
+
+                while (!SerializedProperty.EqualContents(iter, endProp))
                 {
-                    float height = EditorGUI.GetPropertyHeight(iterator, true);
-                    Rect fieldRect = new Rect(
-                        position.x,
-                        currentY,
-                        position.width,
-                        height
-                    );
-                    
-                    EditorGUI.PropertyField(fieldRect, iterator, true);
-                    
-                    currentY += height + 2;
-                    iterator.NextVisible(false);
+                    float h = EditorGUI.GetPropertyHeight(iter, true);
+                    EditorGUI.PropertyField(new Rect(position.x, y, position.width, h), iter, true);
+                    y += h + 2f;
+                    iter.NextVisible(false);
                 }
-                
                 EditorGUI.indentLevel--;
             }
-            
+
             EditorGUI.EndProperty();
         }
-        
+
         public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
         {
             if (!property.isExpanded)
                 return EditorGUIUtility.singleLineHeight;
-            
-            float height = EditorGUIUtility.singleLineHeight + 4; // Foldout + padding
-            
-            var iterator = property.Copy();
-            var endProperty = iterator.GetEndProperty();
-            
-            iterator.NextVisible(true); // Skip script field
-            
-            while (!SerializedProperty.EqualContents(iterator, endProperty))
+
+            float h    = EditorGUIUtility.singleLineHeight + 4f;
+            var   iter = property.Copy();
+            var   end  = iter.GetEndProperty();
+            iter.NextVisible(true);
+
+            while (!SerializedProperty.EqualContents(iter, end))
             {
-                height += EditorGUI.GetPropertyHeight(iterator, true) + 2;
-                iterator.NextVisible(false);
+                h += EditorGUI.GetPropertyHeight(iter, true) + 2f;
+                iter.NextVisible(false);
             }
-            
-            return height;
+            return h;
         }
     }
 }
