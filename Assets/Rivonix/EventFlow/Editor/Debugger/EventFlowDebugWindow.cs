@@ -351,23 +351,29 @@ namespace Rivonix.EventFlow.Editor
                             continue;
                         }
 
-                        EditorGUILayout.LabelField(kvp.Key.Name, EditorStyles.boldLabel);
-
                         var steps = EventFlowController.GetPipelineSteps(kvp.Key);
+                        int stepCount = steps?.Count ?? 0;
+
+                        EditorGUILayout.BeginVertical("box");
+                        EditorGUILayout.LabelField($"{kvp.Key.Name} -> {stepCount} step{(stepCount != 1 ? "s" : "")}", EditorStyles.boldLabel);
+                        EditorGUILayout.LabelField("Execution order shown top to bottom", EditorStyles.miniLabel);
+
                         if (steps == null || steps.Count == 0)
                         {
-                            EditorGUI.indentLevel++;
                             EditorGUILayout.LabelField("No steps registered", EditorStyles.miniLabel);
-                            EditorGUI.indentLevel--;
+                            EditorGUILayout.EndVertical();
                             continue;
                         }
 
-                        EditorGUI.indentLevel++;
-                        foreach (string step in steps)
+                        for (int i = 0; i < steps.Count; i++)
                         {
-                            EditorGUILayout.LabelField($"-> {step}");
+                            PipelineStepInfo step = steps[i];
+                            string enabledLabel = step.Enabled ? "Enabled" : "Disabled";
+                            EditorGUILayout.LabelField(
+                                $"{step.Order}. {step.Name} | Priority: {step.Priority} | {enabledLabel}",
+                                EditorStyles.label);
                         }
-                        EditorGUI.indentLevel--;
+                        EditorGUILayout.EndVertical();
                     }
                 }
             }

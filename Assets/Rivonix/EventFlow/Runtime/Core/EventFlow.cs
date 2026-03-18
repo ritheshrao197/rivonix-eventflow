@@ -43,6 +43,11 @@ namespace Rivonix.EventFlow
             EventFlowController.AddStep(step);
         }
 
+        public static void AddStep<T>(string name, EventStep<T> step, int priority = 0, bool enabled = true) where T : IEvent
+        {
+            EventFlowController.AddStep(name, step, priority, enabled);
+        }
+
         public static bool HasListeners<T>() where T : IEvent
         {
             return EventBus.HasListeners<T>();

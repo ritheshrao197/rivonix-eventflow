@@ -33,9 +33,9 @@ namespace Rivonix.EventFlow.Samples
 
             if (!pipelineInitialized)
             {
-                EventFlow.AddStep<DemoScoreEvent>(Validate);
-                EventFlow.AddStep<DemoScoreEvent>(ApplyMultiplier);
-                EventFlow.AddStep<DemoScoreEvent>(ClampScore);
+                EventFlow.AddStep<DemoScoreEvent>("Validate Score", Validate, 10);
+                EventFlow.AddStep<DemoScoreEvent>("Apply Multiplier", ApplyMultiplier, 20);
+                EventFlow.AddStep<DemoScoreEvent>("Clamp Score", ClampScore, 30);
                 pipelineInitialized = true;
             }
         }
@@ -138,3 +138,4 @@ namespace Rivonix.EventFlow.Samples
         }
     }
 }
+
