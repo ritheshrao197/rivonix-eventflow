@@ -1,36 +1,216 @@
-# Rivonix-EventFlow
+# Rivonix EventFlow
 
-**Controlled Event Processing, Pipelines, and State Management for Unity**
+Production-ready event pipeline architecture for Unity
 
-[![Unity Version](https://img.shields.io/badge/Unity-2022.3%2B-blue)](https://unity.com)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
+Rivonix EventFlow is a modular, type-safe event system designed to eliminate tightly coupled code and introduce structured event processing pipelines in Unity.
 
----
+It goes beyond traditional event buses by allowing events to be validated, transformed, and controlled before they are dispatched, making large-scale systems easier to build, debug, and maintain.
 
-## 📦 Overview
+## Why EventFlow?
 
-**Rivonix-EventFlow** is a controlled event processing system for Unity. Instead of sending events straight to listeners, EventFlow lets you validate, transform, inspect, and route events through a pipeline before dispatch. Built for performance and developer experience, it reduces spaghetti code while making runtime flow visible in tooling.
+Most Unity projects evolve into:
 
-### Why EventFlow?
+- tightly coupled systems
+- implicit dependencies
+- hard-to-debug event chains
 
-Unlike `UnityEvent` or a traditional event bus, EventFlow adds a pipeline layer between trigger and dispatch:
+Traditional approaches like `UnityEvent` or basic event buses only solve communication, not control.
 
-`Trigger -> Pipeline Steps -> Dispatch -> Listeners`
+EventFlow introduces a pipeline layer, giving you full control over how events are processed.
 
-That makes it a better fit for real gameplay flows where you need:
+## Core Concept
 
-- Validation before dispatch
-- Event transformation or score modification
-- Clear debugger visibility into execution order
-- Safer, more controlled event processing
+Instead of:
+
+`Event -> Listeners`
+
+EventFlow enables:
+
+`Event -> Pipeline -> Validation -> Transformation -> Dispatch -> Listeners`
+
+This allows:
+
+- filtering invalid events
+- modifying event data safely
+- controlling execution flow
+- improving debugging visibility
+
+## Key Features
+
+### Type-Safe Event System
+
+- Struct-based events with minimal GC pressure
+- Compile-time safety with no string-based events
+
+### Event Pipelines (Core Feature)
+
+- Define ordered processing steps per event
+- Validate, transform, or stop events before dispatch
+- Priority-based execution
+
+### Clean Public API
 
 ```csharp
-// ❌ Without EventFlow - Tight coupling
-player.health.OnDamage += ui.ShowDamage;
-player.health.OnDamage += audio.PlayOuch;
-player.health.OnDeath += achievementSystem.UnlockAchievement;
+EventFlow.Trigger(eventData);
+EventFlow.Register<MyEvent>(OnEvent);
+EventFlow.AddStep<MyEvent>(ProcessStep);
+```
 
-// ✅ With EventFlow - Clean decoupling
-EventBus.Trigger(new PlayerDamagedEvent { damage = 10 });
-// Any system can listen without the player knowing
+### State-Aware Execution
+
+- Restrict events to specific game states
+- Prevent invalid transitions and edge cases
+
+### Built-in Scheduling
+
+- Trigger delayed or repeated events
+- Replace coroutines for event timing
+
+### Debug & Observability Tools
+
+- Real-time event tracking
+- Pipeline visualization
+- Listener inspection
+
+### Lightweight & Dependency-Free
+
+- Pure C# implementation
+- No external frameworks
+- Drop-in ready
+
+## Quick Start
+
+### 1. Define an Event
+
+```csharp
+public struct PlayerScoredEvent : IEvent
+{
+    public int points;
+}
+```
+
+### 2. Add Pipeline Steps
+
+```csharp
+EventFlow.AddStep<PlayerScoredEvent>(ValidateScore);
+EventFlow.AddStep<PlayerScoredEvent>(ApplyMultiplier);
+
+FlowResult ValidateScore(ref PlayerScoredEvent e)
+{
+    if (e.points <= 0)
+        return FlowResult.Stop;
+
+    return FlowResult.Continue;
+}
+
+FlowResult ApplyMultiplier(ref PlayerScoredEvent e)
+{
+    e.points *= 2;
+    return FlowResult.Continue;
+}
+```
+
+### 3. Listen for Events
+
+```csharp
+void OnEnable()
+{
+    EventFlow.Register<PlayerScoredEvent>(OnScore);
+}
+
+void OnDisable()
+{
+    EventFlow.Unregister<PlayerScoredEvent>(OnScore);
+}
+
+void OnScore(PlayerScoredEvent e)
+{
+    Debug.Log($"Final Score: {e.points}");
+}
+```
+
+### 4. Trigger Event
+
+```csharp
+EventFlow.Trigger(new PlayerScoredEvent { points = 100 });
+```
+
+## Example Flow
+
+```text
+PlayerScoredEvent
+ [1] ValidateScore
+ [2] ApplyMultiplier
+ [3] ClampScore
+ -> Dispatched to 2 listeners
+```
+
+## When to Use EventFlow
+
+Use EventFlow when:
+
+- building scalable gameplay systems
+- decoupling UI, gameplay, and audio
+- managing complex event chains
+- you need control over event execution
+
+## When Not to Use
+
+Avoid for:
+
+- simple one-to-one communication
+- extremely performance-critical direct calls
+
+## Architecture Overview
+
+```text
+EventFlow (Facade)
+        ↓
+EventFlowController (Pipeline Execution)
+        ↓
+EventBus (Dispatch)
+        ↓
+Listeners
+```
+
+## Comparison
+
+| Feature | UnityEvent | Basic Event Bus | EventFlow |
+| --- | --- | --- | --- |
+| Type Safety | No | Yes | Yes |
+| Pipeline Control | No | No | Yes |
+| Debug Visibility | No | Partial | Yes |
+| Scheduling | No | No | Yes |
+| Scalability | Partial | Partial | Yes |
+
+## Demo
+
+Included sample demonstrates:
+
+- player action triggers event
+- pipeline modifies event data
+- UI updates automatically
+- debugger visualizes execution flow
+
+## Installation
+
+Unity Package Manager (Git URL)
+
+```text
+https://github.com/<your-username>/rivonix-eventflow.git
+```
+
+## Roadmap
+
+- Advanced pipeline controls (enable/disable steps)
+- Priority-based execution improvements
+- Visual pipeline editor
+- Multiplayer event sync layer
+
+## About Rivonix
+
+Rivonix is a modular Unity systems toolkit focused on building scalable, production-ready game architecture.
+
+## License
+
+MIT License
