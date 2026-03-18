@@ -30,7 +30,7 @@ public class SimpleGameController : MonoBehaviour
         GameStateManager.SetState(GameStateManager.GameState.MainMenu);
         
         // Trigger game start after 1 second
-        EventBus.TriggerDelayed(new GameStartEvent
+        EventFlow.TriggerDelayed(new GameStartEvent
         {
             levelNumber = startingLevel,
             levelName = "Tutorial",
@@ -53,14 +53,14 @@ public class SimpleGameController : MonoBehaviour
         {
             // Pause the game
             GameStateManager.PushState(GameStateManager.GameState.Paused);
-            EventBus.Trigger(new GamePausedEvent());
+            EventFlow.Trigger(new GamePausedEvent());
             Time.timeScale = 0f;
         }
         else if (GameStateManager.CurrentState == GameStateManager.GameState.Paused)
         {
             // Unpause
             GameStateManager.PopState();
-            EventBus.Trigger(new GameResumedEvent());
+            EventFlow.Trigger(new GameResumedEvent());
             Time.timeScale = 1f;
         }
     }

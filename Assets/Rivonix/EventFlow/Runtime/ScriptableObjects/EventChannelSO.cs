@@ -27,8 +27,8 @@ namespace Rivonix.EventFlow
                 
             OnEventRaised?.Invoke();
             
-            // Also trigger through EventBus for code listeners
-            EventBus.Trigger(new ScriptableObjectEvent { channelName = name });
+            // Also trigger through EventFlow for code listeners
+            EventFlow.Trigger(new ScriptableObjectEvent { channelName = name });
         }
         
         private void OnEnable()

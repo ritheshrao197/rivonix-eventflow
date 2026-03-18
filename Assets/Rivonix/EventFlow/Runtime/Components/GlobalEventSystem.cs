@@ -68,7 +68,7 @@ namespace Rivonix.EventFlow
         private void Update()
         {
             // Reset frame counter for event bus
-            EventBus.OnFrameEnd();
+            EventFlowDiagnostics.ResetFrame();
             
             // Debug window shortcut
             #if UNITY_EDITOR
@@ -105,7 +105,7 @@ namespace Rivonix.EventFlow
         /// </summary>
         public static void Cleanup()
         {
-            EventBus.Clear();
+            EventFlow.ClearListeners();
         }
     }
 }

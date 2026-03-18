@@ -6,7 +6,7 @@ namespace Rivonix.EventFlow
 {
     /// <summary>
     /// Internal component that tracks event listeners for automatic cleanup.
-    /// Attached automatically when using EventBus.Register(owner, handler).
+    /// Attached automatically when using EventFlow.Register(owner, handler).
     /// </summary>
     public class ListenerTracker : MonoBehaviour
     {

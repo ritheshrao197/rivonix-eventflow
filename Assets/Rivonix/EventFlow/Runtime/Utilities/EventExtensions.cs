@@ -33,7 +33,7 @@ namespace Rivonix.EventFlow
         /// </summary>
         public static void TriggerAndReturn<T>(this T eventData) where T : IEvent
         {
-            EventBus.Trigger(eventData);
+            EventFlow.Trigger(eventData);
             eventData.ReturnToPool();
         }
     }

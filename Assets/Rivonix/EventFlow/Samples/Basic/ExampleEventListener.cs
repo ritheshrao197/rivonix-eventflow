@@ -15,10 +15,10 @@ public class ExampleEventListener : EventListenerBase
     protected override void RegisterEvents()
     {
         // Register for various events
-        EventBus.Register<PlayerScoredEvent>(OnPlayerScored);
-        EventBus.Register<PlayerDamagedEvent>(OnPlayerDamaged);
-        EventBus.Register<PlayerDiedEvent>(OnPlayerDied);
-        EventBus.Register<GameStateChangedEvent>(OnGameStateChanged);
+        EventFlow.Register<PlayerScoredEvent>(OnPlayerScored);
+        EventFlow.Register<PlayerDamagedEvent>(OnPlayerDamaged);
+        EventFlow.Register<PlayerDiedEvent>(OnPlayerDied);
+        EventFlow.Register<GameStateChangedEvent>(OnGameStateChanged);
         
         Debug.Log("[Example] Registered for events");
     }
@@ -44,7 +44,7 @@ public class ExampleEventListener : EventListenerBase
         if (health <= 0)
         {
             // Trigger death event
-            EventBus.Trigger(new PlayerDiedEvent
+            EventFlow.Trigger(new PlayerDiedEvent
             {
                 finalScore = score,
                 playTime = Time.time,
@@ -72,7 +72,7 @@ public class ExampleEventListener : EventListenerBase
         // Example: Trigger events based on input
        if (Input.GetKeyDown(KeyCode.Space))
         {
-            EventBus.Trigger(new PlayerScoredEvent
+            EventFlow.Trigger(new PlayerScoredEvent
             {
                 points = 100,
                 enemyTag = "Enemy",
@@ -82,7 +82,7 @@ public class ExampleEventListener : EventListenerBase
         
         if (Input.GetKeyDown(KeyCode.D))
         {
-            EventBus.Trigger(new PlayerDamagedEvent
+            EventFlow.Trigger(new PlayerDamagedEvent
             {
                 damage = 10,
                 source = "Enemy",
@@ -96,12 +96,12 @@ public class ExampleEventListener : EventListenerBase
             if (GameStateManager.CurrentState == GameStateManager.GameState.Playing)
             {
                 GameStateManager.PushState(GameStateManager.GameState.Paused);
-                EventBus.Trigger(new GamePausedEvent());
+                EventFlow.Trigger(new GamePausedEvent());
             }
             else if (GameStateManager.CurrentState == GameStateManager.GameState.Paused)
             {
                 GameStateManager.PopState();
-                EventBus.Trigger(new GameResumedEvent());
+                EventFlow.Trigger(new GameResumedEvent());
             }
         }
         

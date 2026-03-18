@@ -81,7 +81,7 @@ namespace Rivonix.EventFlow
         {
             Type eventType = typeof(T);
             
-            if (!EventFlowDiagnostics.TryBeginEventDispatch(eventType))
+            if (!EventFlowDiagnostics.TryBeginEventDispatch())
             {
                 return;
             }

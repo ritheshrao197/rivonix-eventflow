@@ -113,7 +113,7 @@ namespace Rivonix.EventFlow
             OnStateChanged?.Invoke(previousState, newState);
             
             // Trigger event for other systems
-            EventBus.Trigger(new GameStateChangedEvent
+            EventFlow.Trigger(new GameStateChangedEvent
             {
                 previousState = previousState,
                 newState = newState,
@@ -137,7 +137,7 @@ namespace Rivonix.EventFlow
                 
                 OnStateChanged?.Invoke(previousState, newState);
                 
-                EventBus.Trigger(new GameStateChangedEvent
+                EventFlow.Trigger(new GameStateChangedEvent
                 {
                     previousState = previousState,
                     newState = newState,
@@ -162,7 +162,7 @@ namespace Rivonix.EventFlow
             
             OnStateChanged?.Invoke(previousState, newState);
             
-            EventBus.Trigger(new GameStateChangedEvent
+            EventFlow.Trigger(new GameStateChangedEvent
             {
                 previousState = previousState,
                 newState = newState,

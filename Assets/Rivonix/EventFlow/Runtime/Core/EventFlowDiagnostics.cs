@@ -31,7 +31,7 @@ namespace Rivonix.EventFlow
             set => maxEventsPerFrame = Mathf.Max(1, value);
         }
 
-        public static bool TryBeginEventDispatch(Type eventType)
+        public static bool TryBeginEventDispatch()
         {
             eventsThisFrame++;
             if (eventsThisFrame > maxEventsPerFrame)

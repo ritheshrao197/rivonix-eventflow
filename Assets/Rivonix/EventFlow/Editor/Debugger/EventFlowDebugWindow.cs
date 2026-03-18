@@ -178,11 +178,12 @@ namespace Rivonix.EventFlow.Editor
             if (showPerformance)
             {
                 var progressRect = EditorGUILayout.GetControlRect(false, 20);
-                float eventLoad = Mathf.Clamp01(EventBus.GetEventHistory().Count / 50f);
-                EditorGUI.ProgressBar(progressRect, eventLoad, $"Events in history: {EventBus.GetEventHistory().Count}");
+                float eventLoad = Mathf.Clamp01(EventFlowDiagnostics.EventHistory.Count / 50f);
+                EditorGUI.ProgressBar(progressRect, eventLoad, $"Events in history: {EventFlowDiagnostics.EventHistory.Count}");
                 
                 EditorGUILayout.LabelField($"Total Event Types: {eventTypes.Count}");
                 EditorGUILayout.LabelField($"Total Listeners: {listenerCounts.Values.Sum()}");
+                EditorGUILayout.LabelField($"Events This Frame: {EventFlowDiagnostics.EventsThisFrame}/{EventFlowDiagnostics.MaxEventsPerFrame}");
                 EditorGUILayout.LabelField($"Scheduled Events: {EventScheduler.Instance.ScheduledCount}");
                 EditorGUILayout.LabelField($"Repeating Events: {EventScheduler.Instance.RepeatingCount}");
             }
@@ -272,7 +273,7 @@ namespace Rivonix.EventFlow.Editor
             {
                 historyScrollPosition = EditorGUILayout.BeginScrollView(historyScrollPosition, GUILayout.Height(200));
                 
-                var history = EventBus.GetEventHistory();
+                var history = EventFlowDiagnostics.EventHistory;
                 
                 if (history == null || history.Count == 0)
                 {
@@ -410,13 +411,7 @@ namespace Rivonix.EventFlow.Editor
             GUI.backgroundColor = Color.yellow;
             if (GUILayout.Button("Clear History", GUILayout.Height(30)))
             {
-                // Clear history via reflection
-                var historyField = typeof(EventBus).GetField("eventHistory", BindingFlags.Static | BindingFlags.NonPublic);
-                if (historyField != null)
-                {
-                    var history = historyField.GetValue(null) as List<EventBus.EventLog>;
-                    history?.Clear();
-                }
+                EventFlowDiagnostics.ClearHistory();
             }
             
             GUI.backgroundColor = Color.red;
@@ -426,7 +421,7 @@ namespace Rivonix.EventFlow.Editor
                     "This will remove ALL event listeners. Are you sure?", 
                     "Yes", "Cancel"))
                 {
-                    EventBus.Clear();
+                    EventFlow.ClearListeners();
                     RefreshData();
                 }
             }
@@ -443,8 +438,8 @@ namespace Rivonix.EventFlow.Editor
             EditorGUILayout.Space(5);
             
             EditorGUILayout.HelpBox(
-                "Use EventBus.Register<T>() to listen for events\n" +
-                "Use EventBus.Trigger<T>() to fire events\n" +
+                "Use EventFlow.Register<T>() to listen for events\n" +
+                "Use EventFlow.Trigger<T>() to fire events\n" +
                 "Use GameStateManager.PushState() to change states",
                 MessageType.Info
             );

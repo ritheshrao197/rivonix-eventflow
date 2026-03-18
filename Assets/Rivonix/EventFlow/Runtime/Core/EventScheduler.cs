@@ -103,7 +103,7 @@ namespace Rivonix.EventFlow
         
         private void TriggerEvent(ScheduledEvent scheduled)
         {
-            var method = typeof(EventBus).GetMethod("Trigger");
+            var method = typeof(EventFlow).GetMethod("Trigger");
             var generic = method.MakeGenericMethod(scheduled.eventType);
             generic.Invoke(null, new object[] { scheduled.eventData });
         }

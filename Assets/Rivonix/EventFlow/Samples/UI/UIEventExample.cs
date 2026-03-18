@@ -38,9 +38,9 @@ public class UIEventExample : EventListenerBase
     protected override void RegisterEvents()
     {
         // Register for events
-        EventBus.Register<PlayerScoredEvent>(OnPlayerScored);
-        EventBus.Register<PlayerDamagedEvent>(OnPlayerDamaged);
-        EventBus.Register<GameStateChangedEvent>(OnGameStateChanged);
+        EventFlow.Register<PlayerScoredEvent>(OnPlayerScored);
+        EventFlow.Register<PlayerDamagedEvent>(OnPlayerDamaged);
+        EventFlow.Register<GameStateChangedEvent>(OnGameStateChanged);
         
         // Subscribe to ScriptableObject channels
         if (scoreChannel != null)
@@ -100,12 +100,12 @@ public class UIEventExample : EventListenerBase
         if (GameStateManager.CurrentState == GameStateManager.GameState.Playing)
         {
             GameStateManager.PushState(GameStateManager.GameState.Paused);
-            EventBus.Trigger(new GamePausedEvent());
+            EventFlow.Trigger(new GamePausedEvent());
         }
         else if (GameStateManager.CurrentState == GameStateManager.GameState.Paused)
         {
             GameStateManager.PopState();
-            EventBus.Trigger(new GameResumedEvent());
+            EventFlow.Trigger(new GameResumedEvent());
         }
     }
     
